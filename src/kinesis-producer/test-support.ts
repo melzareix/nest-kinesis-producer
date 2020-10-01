@@ -7,7 +7,7 @@ import { PutRecordsOutput } from 'aws-sdk/clients/kinesis';
 export class TestSupport {
   public generateKinesisEvent(): KinesisEvent {
     return {
-      Data: JSON.stringify({ Ben: 'Is Awesome!' }),
+      Data: Buffer.from(JSON.stringify({ Ben: 'Is Awesome!' })),
       PartitionKey: '1',
     };
   }
