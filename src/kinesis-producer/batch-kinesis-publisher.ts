@@ -10,7 +10,7 @@ export class BatchKinesisPublisher {
   private static readonly ONE_MEG = 1024 * 1024;
   protected entries: PutRecordsRequestEntry[] = [];
   protected streamName: string;
-  private dataSize = 0;
+  private payloadSize = 0;
   constructor(protected readonly kinesis: Kinesis) {
     this.baseLogger = new Logger(BatchKinesisPublisher.name);
   }
@@ -56,13 +56,13 @@ export class BatchKinesisPublisher {
       return;
     }
 
-    const newDataSize = this.dataSize + entryDataSize + entryPartitionKeySize;
-    if (newDataSize <= 5 * BatchKinesisPublisher.ONE_MEG && this.entries.length < 500) {
-      this.dataSize = newDataSize;
+    const newPayloadSize = this.payloadSize + entryDataSize + entryPartitionKeySize;
+    if (newPayloadSize <= 5 * BatchKinesisPublisher.ONE_MEG && this.entries.length < 500) {
+      this.payloadSize = newPayloadSize;
       this.entries.push(entry);
     } else {
       await this.flush();
-      this.dataSize = 0;
+      this.payloadSize = 0;
       await this.addEntry(entry);
     }
   }
