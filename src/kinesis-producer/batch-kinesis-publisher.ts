@@ -10,7 +10,7 @@ export class BatchKinesisPublisher {
   private static readonly ONE_MEG = 1024 * 1024;
   protected entries: PutRecordsRequestEntry[] = [];
   protected streamName: string;
-  private dataSize: number = 0;
+  private dataSize = 0;
   constructor(protected readonly kinesis: Kinesis) {
     this.baseLogger = new Logger(BatchKinesisPublisher.name);
   }
@@ -41,8 +41,9 @@ export class BatchKinesisPublisher {
   }
 
   protected async addEntry(entry: PutRecordsRequestEntry): Promise<void> {
-    const entryDataSize: number = (<Buffer>entry.Data).length + entry.PartitionKey.length;
-    if (Number.isNaN(entryDataSize)) {
+    const entryDataSize: number = (<Buffer>entry.Data).length;
+    const entryPartitionKeySize = entry.PartitionKey.length;
+    if (Number.isNaN(entryDataSize) || Number.isNaN(entryPartitionKeySize)) {
       this.baseLogger.error(
         `Cannot produce data size of partitionKey: ${entry.PartitionKey}  |  Data: ${entry.Data.toString('utf8')}`,
       );
@@ -55,8 +56,8 @@ export class BatchKinesisPublisher {
       return;
     }
 
-    const newDataSize = this.dataSize + entryDataSize;
-    if (newDataSize <= 5 * 1024 * 1024 && this.entries.length < 500) {
+    const newDataSize = this.dataSize + entryDataSize + entryPartitionKeySize;
+    if (newDataSize <= 5 * BatchKinesisPublisher.ONE_MEG && this.entries.length < 500) {
       this.dataSize = newDataSize;
       this.entries.push(entry);
     } else {
