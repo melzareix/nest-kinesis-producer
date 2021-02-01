@@ -10,7 +10,7 @@ export class BatchKinesisPublisher {
   private static readonly ONE_MEG = 1024 * 1024;
   protected entries: PutRecordsRequestEntry[] = [];
   protected streamName: string;
-  private dataSize: number = 0;
+  private payloadSize = 0;
   constructor(protected readonly kinesis: Kinesis) {
     this.baseLogger = new Logger(BatchKinesisPublisher.name);
   }
@@ -20,15 +20,12 @@ export class BatchKinesisPublisher {
     this.streamName = streamName;
     for (const x of events) {
       await this.addEntry({
-        Data: this.getDataBytes(x.Data),
+        Data: x.Data,
         PartitionKey: x.PartitionKey.toString(),
       });
     }
     await this.flush();
     this.baseLogger.log(`putRecords() completed for ${events.length} records`);
-  }
-  protected getDataBytes(data: string): Buffer {
-    return Buffer.from(data, 'utf8');
   }
 
   protected async flush(): Promise<void> {
@@ -44,8 +41,9 @@ export class BatchKinesisPublisher {
   }
 
   protected async addEntry(entry: PutRecordsRequestEntry): Promise<void> {
-    const entryDataSize: number = entry.Data.toString('utf8').length + entry.PartitionKey.length;
-    if (Number.isNaN(entryDataSize)) {
+    const entryDataSize: number = (<Buffer>entry.Data).length;
+    const entryPartitionKeySize = entry.PartitionKey.length;
+    if (Number.isNaN(entryDataSize) || Number.isNaN(entryPartitionKeySize)) {
       this.baseLogger.error(
         `Cannot produce data size of partitionKey: ${entry.PartitionKey}  |  Data: ${entry.Data.toString('utf8')}`,
       );
@@ -58,13 +56,13 @@ export class BatchKinesisPublisher {
       return;
     }
 
-    const newDataSize = this.dataSize + entryDataSize;
-    if (newDataSize <= 5 * 1024 * 1024 && this.entries.length < 500) {
-      this.dataSize = newDataSize;
+    const newPayloadSize = this.payloadSize + entryDataSize + entryPartitionKeySize;
+    if (newPayloadSize <= 5 * BatchKinesisPublisher.ONE_MEG && this.entries.length < 500) {
+      this.payloadSize = newPayloadSize;
       this.entries.push(entry);
     } else {
       await this.flush();
-      this.dataSize = 0;
+      this.payloadSize = 0;
       await this.addEntry(entry);
     }
   }
